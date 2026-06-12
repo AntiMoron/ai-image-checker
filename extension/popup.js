@@ -1,6 +1,6 @@
 document.getElementById('rescan').addEventListener('click', async () => {
   const status = document.getElementById('status');
-  status.textContent = 'Reloading page scanner...';
+  status.textContent = 'Starting lightweight scan...';
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) {
     status.textContent = 'No active tab found.';
@@ -8,7 +8,12 @@ document.getElementById('rescan').addEventListener('click', async () => {
   }
   await chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    files: ['lib/page-filter.js', 'content.js']
+    files: ['lib/page-filter.js', 'lib/presentation.js', 'content.js']
   });
-  status.textContent = 'Scanner injected. Images larger than 300x300 will be checked.';
+  const response = await chrome.tabs.sendMessage(tab.id, {
+    type: 'AI_IMAGE_CHECKER_START_PAGE_SCAN'
+  }).catch((error) => ({ ok: false, error: error.message }));
+  status.textContent = response.ok
+    ? 'Scanning visible images larger than 300x300. Quick mode avoids DCT CPU load.'
+    : `Could not start scan: ${response.error}`;
 });

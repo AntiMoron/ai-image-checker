@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { scanMetadata } = require('../extension/lib/metadata');
-const { shouldInspectImage } = require('../extension/lib/page-filter');
+const { isVisibleInViewport, shouldInspectImage } = require('../extension/lib/page-filter');
 
 function jpegWithAppSegment(text) {
   const payload = Buffer.from(text, 'utf8');
@@ -32,4 +32,11 @@ test('extension page filter only accepts images larger than 300x300 with usable 
   assert.equal(shouldInspectImage({ src: 'https://example.com/a.png', naturalWidth: 300, naturalHeight: 301 }), false);
   assert.equal(shouldInspectImage({ src: '', naturalWidth: 800, naturalHeight: 800 }), false);
   assert.equal(shouldInspectImage({ src: 'data:image/png;base64,aaa', naturalWidth: 800, naturalHeight: 800 }), true);
+});
+
+test('extension page filter can restrict scans to visible viewport images', () => {
+  assert.equal(isVisibleInViewport({ top: 10, left: 10, right: 200, bottom: 200 }, 800, 600), true);
+  assert.equal(isVisibleInViewport({ top: 700, left: 10, right: 200, bottom: 900 }, 800, 600), false);
+  assert.equal(isVisibleInViewport({ top: 10, left: 900, right: 1200, bottom: 200 }, 800, 600), false);
+  assert.equal(isVisibleInViewport({ top: -50, left: 10, right: 200, bottom: 40 }, 800, 600), true);
 });

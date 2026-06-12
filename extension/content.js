@@ -1,7 +1,11 @@
 (function initContent() {
-  const { shouldInspectImage } = globalThis.AIImageCheckerPageFilter;
+  if (globalThis.__AI_IMAGE_CHECKER_CONTENT_READY__) return;
+  globalThis.__AI_IMAGE_CHECKER_CONTENT_READY__ = true;
+
+  const { isVisibleInViewport, shouldInspectImage } = globalThis.AIImageCheckerPageFilter;
   const { getImageTreatment } = globalThis.AIImageCheckerPresentation;
-  const MAX_CONCURRENT = 3;
+  const MAX_CONCURRENT = 1;
+  const MAX_IMAGES_PER_RUN = 25;
   const seen = new WeakSet();
   const bySrc = new Set();
   let queue = [];
@@ -12,7 +16,7 @@
     if (panel) return panel;
     panel = document.createElement('div');
     panel.id = 'ai-image-checker-panel';
-    panel.textContent = 'AI Image Checker: scanning page images...';
+    panel.textContent = 'AI Image Checker: idle';
     Object.assign(panel.style, {
       position: 'fixed',
       right: '12px',
@@ -85,6 +89,8 @@
 
   function enqueueImage(image) {
     if (seen.has(image) || !shouldInspectImage(image) || bySrc.has(image.currentSrc || image.src)) return;
+    const rect = image.getBoundingClientRect();
+    if (!isVisibleInViewport(rect, window.innerWidth, window.innerHeight)) return;
     seen.add(image);
     const src = image.currentSrc || image.src;
     bySrc.add(src);
@@ -94,22 +100,28 @@
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         src,
         width: image.naturalWidth,
-        height: image.naturalHeight
+        height: image.naturalHeight,
+        mode: 'quick'
       }
     });
   }
 
   function collectImages() {
-    document.querySelectorAll('img').forEach(enqueueImage);
+    queue = [];
+    let count = 0;
+    for (const image of document.querySelectorAll('img')) {
+      if (count >= MAX_IMAGES_PER_RUN) break;
+      const before = queue.length;
+      enqueueImage(image);
+      if (queue.length > before) count += 1;
+    }
     runNext();
   }
 
-  const observer = new MutationObserver(() => collectImages());
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', collectImages, { once: true });
-  } else {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!message || message.type !== 'AI_IMAGE_CHECKER_START_PAGE_SCAN') return false;
     collectImages();
-  }
+    sendResponse({ ok: true, queued: queue.length + active });
+    return false;
+  });
 })();

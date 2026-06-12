@@ -37,25 +37,38 @@ async function fetchImageBytes(url) {
 }
 
 async function scanImage(request) {
-  const cacheKey = request.src;
+  const mode = request.mode || 'quick';
+  const cacheKey = `${mode}:${request.src}`;
   if (CACHE.has(cacheKey)) return CACHE.get(cacheKey);
 
   const { buffer, blob, contentType } = await fetchImageBytes(request.src);
   const metadata = globalThis.AIImageCheckerMetadata.scanMetadata(buffer, request.src);
   let heuristics;
-  try {
-    const grayImage = await decodeToGray(blob);
-    heuristics = globalThis.AIImageCheckerHeuristics.analyzeFrequencyHeuristics(grayImage);
-  } catch (error) {
+  if (mode === 'quick') {
     heuristics = {
       heuristicScore: 0,
       riskLevel: 'low',
       signals: [],
       notes: [
-        'Frequency analysis could not be completed in this browser context.',
-        error.message
+        'Quick mode skipped frequency analysis to avoid high CPU usage.',
+        'Deterministic metadata evidence is still checked locally.'
       ]
     };
+  } else {
+    try {
+    const grayImage = await decodeToGray(blob);
+    heuristics = globalThis.AIImageCheckerHeuristics.analyzeFrequencyHeuristics(grayImage);
+    } catch (error) {
+      heuristics = {
+        heuristicScore: 0,
+        riskLevel: 'low',
+        signals: [],
+        notes: [
+          'Frequency analysis could not be completed in this browser context.',
+          error.message
+        ]
+      };
+    }
   }
 
   const result = {

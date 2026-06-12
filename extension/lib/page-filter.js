@@ -10,5 +10,13 @@
     return image.naturalWidth > MIN_IMAGE_SIZE && image.naturalHeight > MIN_IMAGE_SIZE;
   }
 
-  return { MIN_IMAGE_SIZE, shouldInspectImage };
+  function isVisibleInViewport(rect, viewportWidth, viewportHeight) {
+    if (!rect) return false;
+    return rect.bottom > 0 &&
+      rect.right > 0 &&
+      rect.top < viewportHeight &&
+      rect.left < viewportWidth;
+  }
+
+  return { MIN_IMAGE_SIZE, shouldInspectImage, isVisibleInViewport };
 });
